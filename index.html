@@ -1,40 +1,310 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Toko Otomatis — Demo</title>
-  <style>
-    :root{
-      --bg:#0f1724; --card:#0b1220; --accent:#06b6d4; --muted:#94a3b8;
-      --glass: rgba(255,255,255,0.03);
-      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      color:#e6eef6;
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZYY Official — Top Up Store</title>
+<style>
+:root{--bg:#071129;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;color:#e6eef6;font-family:Inter,system-ui,Arial}
+body{margin:0;background:linear-gradient(180deg,#071129 0%, #081026 70%);padding:18px}
+.panel{background:var(--card);padding:14px;border-radius:10px;color:var(--muted)}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+button{padding:8px 10px;border-radius:8px;border:0;background:var(--accent);color:#021;cursor:pointer}
+input,select,textarea{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;width:100%}
+.small{font-size:13px;color:var(--muted)}
+.card{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;margin-bottom:10px}
+.btn-plain{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);padding:6px;border-radius:6px;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h2 style="margin:0;color:#e6eef6">ZYY Official — Top Up Store</h2>
+      <div class="small">Auto-confirm active · DANA: <b>083834256959</b></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="openAdmin">Admin</button>
+      <button id="exportOrders">Export CSV</button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:16px">
+    <!-- LEFT: Katalog -->
+    <section class="panel">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="q" placeholder="Cari produk...">
+        <select id="cat"><option value="all">Semua</option></select>
+      </div>
+
+      <div id="grid"></div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label class="small">UID</label><input id="uid" placeholder="Contoh: 123456789"></div>
+        <div><label class="small">Server (opsional)</label><input id="server" placeholder="Contoh: 1 / ID"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="addCart">Tambah ke Keranjang</button>
+        <button id="buyNow">Beli Sekarang (Auto)</button>
+      </div>
+
+      <div style="margin-top:14px">
+        <div class="small">Pembayaran via gateway (butuh backend):</div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button id="payMidtrans">Midtrans Snap</button>
+          <button id="payTripay">Tripay / Duitku</button>
+        </div>
+        <div class="small" style="margin-top:6px">Catatan: server-side diperlukan; contoh backend disertakan.</div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Keranjang & Orders -->
+    <aside class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="small">Keranjang</div>
+        <div class="small">Items: <span id="count">0</span></div>
+      </div>
+
+      <div id="cartList" style="min-height:140px"></div>
+
+      <div style="margin-top:12px">
+        <div class="small">Total</div>
+        <div style="font-weight:700;font-size:18px" id="totalRp">Rp 0</div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="checkout">Checkout (Auto)</button>
+          <button id="clearCart" class="btn-plain">Kosongkan</button>
+        </div>
+      </div>
+
+      <hr style="margin:12px 0;border-top:1px solid rgba(255,255,255,0.03)">
+
+      <div class="small" style="margin-bottom:6px">Riwayat Pesanan</div>
+      <div id="orders" style="max-height:300px;overflow:auto"></div>
+
+      <div style="margin-top:12px">
+        <div class="small">Jika ingin kirim bukti transfer, gunakan tombol <b>Kirim Bukti</b> pada order.</div>
+      </div>
+    </aside>
+  </div>
+
+<script>
+// ========== KONFIG ==========
+const ADMIN_WA = '62881036764627'; // <-- ADMIN WA baru (sudah kamu minta)
+const DANA_NUMBER = '083834256959';
+
+// ========== SAMPLE PRODUCTS ==========
+const defaultProducts = [
+  {id:'ml14', title:'MLBB 14 Diamonds', price:3500, cat:'MLBB'},
+  {id:'ml86', title:'MLBB 86 Diamonds', price:20000, cat:'MLBB'},
+  {id:'ff50', title:'FF 50 Diamonds', price:9000, cat:'FF'},
+  {id:'pubg60', title:'PUBG 60 UC', price:15000, cat:'PUBG'},
+  {id:'gi60', title:'Genshin 60', price:14000, cat:'GENSHIN'},
+  {id:'rb80', title:'Robux 80', price:15000, cat:'ROBLOX'},
+  {id:'val125', title:'Valorant 125 VP', price:15000, cat:'VALORANT'},
+  {id:'steam5', title:'Steam 5 USD', price:85000, cat:'STEAM'}
+];
+
+// ========== STATE (localStorage) ==========
+let products = JSON.parse(localStorage.getItem('products')) || defaultProducts;
+let cart = JSON.parse(localStorage.getItem('cart')) || {}; // {id:qty}
+let orders = JSON.parse(localStorage.getItem('orders')) || [];
+let selectedProductId = null;
+
+// ========== HELPERS ==========
+const el = id => document.getElementById(id);
+const fmt = n => n.toLocaleString('id-ID');
+
+// ========== RENDER ==========
+function populateCategories(){
+  const cats = ['all', ...new Set(products.map(p=>p.cat))];
+  el('cat').innerHTML = cats.map(c=>`<option value="${c}">${c==='all'?'Semua':c}</option>`).join('');
+}
+function renderProducts(q='', cat='all'){
+  const grid = el('grid'); grid.innerHTML = '';
+  const filtered = products.filter(p=> (cat==='all' || p.cat===cat) && (p.title+' '+(p.cat||'')).toLowerCase().includes(q.toLowerCase()));
+  filtered.forEach(p=>{
+    const div = document.createElement('div'); div.className='card';
+    div.innerHTML = `<div style="display:flex;justify-content:space-between"><div><b>${p.title}</b><div class="small">${p.cat}</div></div><div style="text-align:right"><b>Rp ${fmt(p.price)}</b></div></div>`;
+    div.addEventListener('click', ()=> { selectedProductId = p.id; alert('Produk dipilih: '+p.title); });
+    grid.appendChild(div);
+  });
+}
+function renderCart(){
+  const box = el('cartList'); box.innerHTML = '';
+  const keys = Object.keys(cart);
+  if(!keys.length) { box.innerHTML = '<div class="small">Keranjang kosong</div>'; el('count').textContent = 0; el('totalRp').textContent = 'Rp 0'; return; }
+  let total=0, qty=0;
+  keys.forEach(k=>{
+    const p = products.find(x=>x.id===k);
+    const q = cart[k];
+    qty += q;
+    total += p.price*q;
+    const row = document.createElement('div'); row.className='card';
+    row.innerHTML = `<div style="display:flex;justify-content:space-between"><div><b>${p.title}</b><div class="small">Qty: ${q}</div></div><div style="text-align:right"><b>Rp ${fmt(p.price*q)}</b><div style="margin-top:6px"><button class="btn-plain" data-id="${k}" onclick="removeItem(event)">Hapus</button></div></div></div>`;
+    box.appendChild(row);
+  });
+  const discount = qty>=3 ? Math.round(total*0.10) : 0;
+  const final = total - discount;
+  el('count').textContent = qty;
+  el('totalRp').textContent = `Rp ${fmt(final)}${discount? ' (Diskon Rp '+fmt(discount)+')':''}`;
+}
+function renderOrders(){
+  const box = el('orders'); box.innerHTML = '';
+  if(!orders.length){ box.innerHTML = '<div class="small">Belum ada pesanan</div>'; return; }
+  orders.slice().reverse().forEach(o=>{
+    const d = document.createElement('div'); d.className='card';
+    d.innerHTML = `<div style="font-weight:700">${o.id} · Rp ${fmt(o.total)}</div>
+                   <div class="small">${o.items.map(i=>i.title+'×'+i.qty).join(', ')}</div>
+                   <div class="small">${o.uid}${o.server? ' · Server:'+o.server:''} · ${o.when}</div>
+                   <div style="margin-top:8px"><button class="btn-plain" data-id="${o.id}" onclick="sendProof(event)">Kirim Bukti</button> <button class="btn-plain" data-id="${o.id}" onclick="copyOrder(event)">Salin</button></div>`;
+    box.appendChild(d);
+  });
+}
+
+// ========== ACTIONS ==========
+function addToCart(productId, qty=1){
+  const p = products.find(x=>x.id===productId);
+  if(!p) return alert('Produk tidak ditemukan');
+  cart[productId] = (cart[productId] || 0) + qty;
+  localStorage.setItem('cart', JSON.stringify(cart));
+  renderCart();
+}
+function removeItem(e){ const id = e.currentTarget.dataset.id; delete cart[id]; localStorage.setItem('cart', JSON.stringify(cart)); renderCart(); }
+
+function validateUID(uid){
+  if(!uid) return {ok:false,msg:'UID wajib diisi'}; if(!/^\d{4,12}$/.test(uid)) return {ok:false,msg:'UID harus 4-12 digit'}; return {ok:true};
+}
+
+function buildOrder(uid, server, payloadItems){
+  const id = 'ORD-' + Date.now().toString(36).toUpperCase().slice(-10);
+  let total=0, qty=0;
+  payloadItems.forEach(i=>{ total += i.price * i.qty; qty += i.qty; });
+  const discount = qty>=3 ? Math.round(total*0.10) : 0;
+  return { id, uid, server, items: payloadItems, total: total-discount, when: new Date().toLocaleString('id-ID'), discount };
+}
+
+function checkoutAuto(fromBuyNow=false){
+  const uid = el('uid').value.trim(); const server = el('server').value.trim();
+  const v = validateUID(uid); if(!v.ok) return alert(v.msg);
+  let items = [];
+  if(fromBuyNow){
+    if(!selectedProductId) return alert('Pilih produk dulu');
+    const p = products.find(x=>x.id===selectedProductId);
+    items.push({id:p.id,title:p.title,price:p.price,qty:1});
+  } else {
+    const keys = Object.keys(cart);
+    if(!keys.length) return alert('Keranjang kosong');
+    keys.forEach(k=>{ const p = products.find(x=>x.id===k); items.push({id:p.id,title:p.title,price:p.price,qty:cart[k]}); });
+  }
+  const order = buildOrder(uid, server, items);
+  orders.push(order); localStorage.setItem('orders', JSON.stringify(orders));
+  // reduce stock simulation skipped (no stock field in this minimal sample)
+  cart = {}; localStorage.setItem('cart', JSON.stringify(cart));
+  selectedProductId = null;
+  renderCart(); renderOrders();
+  alert('Pembayaran sukses (Auto Confirm)\nOrder ID: ' + order.id);
+  // notify admin via WA
+  const msg = [
+    `New Order (${order.id})`,
+    `UID: ${order.uid}${order.server? ' · Server: '+order.server : ''}`,
+    `Items: ${order.items.map(i=>i.title+'×'+i.qty).join(', ')}`,
+    `Total: Rp ${fmt(order.total)}`,
+    `Pembayaran: Auto-confirm (DANA: ${DANA_NUMBER})`,
+    `Waktu: ${order.when}`
+  ].join('\n');
+  window.open('https://wa.me/' + ADMIN_WA + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function sendProof(e){
+  const id = e.currentTarget.dataset.id; const order = orders.find(o=>o.id===id); if(!order) return;
+  const msg = `Saya mengirim bukti pembayaran untuk Order ${order.id}\nUID: ${order.uid}\nTotal: Rp ${fmt(order.total)}\nSilakan proses.`;
+  window.open('https://wa.me/' + ADMIN_WA + '?text=' + encodeURIComponent(msg), '_blank');
+}
+function copyOrder(e){
+  const id = e.currentTarget.dataset.id; const order = orders.find(o=>o.id===id); if(!order) return;
+  const text = `Order ${order.id}\nUID: ${order.uid}\nItems: ${order.items.map(i=>i.title+'×'+i.qty).join(', ')}\nTotal: Rp ${fmt(order.total)}`;
+  navigator.clipboard?.writeText(text).then(()=> alert('Pesanan disalin ke clipboard'));
+}
+
+// ========== GATEWAY (frontend calls backend) ==========
+async function payWithMidtrans(){
+  const uid = el('uid').value.trim(); const server = el('server').value.trim();
+  const v = validateUID(uid); if(!v.ok) return alert(v.msg);
+  // gather items
+  let items = []; const keys = Object.keys(cart);
+  if(!keys.length && !selectedProductId) return alert('Pilih produk atau isi keranjang');
+  if(selectedProductId) {
+    const p = products.find(x=>x.id===selectedProductId); items.push({id:p.id,title:p.title,price:p.price,qty:1});
+  } else keys.forEach(k=> { const p = products.find(x=>x.id===k); items.push({id:p.id,title:p.title,price:p.price,qty:cart[k]}); });
+
+  try {
+    const resp = await fetch('/api/create-midtrans', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,server,items})});
+    if(!resp.ok) throw new Error('Backend tidak merespon');
+    const data = await resp.json();
+    if(!data.snap_token) throw new Error('snap_token tidak ditemukan');
+    if(!window.snap){
+      const s = document.createElement('script'); s.src='https://app.sandbox.midtrans.com/snap/snap.js'; s.setAttribute('data-client-key','YOUR_CLIENT_KEY'); document.head.appendChild(s);
+      await new Promise(res=> s.onload = res);
     }
-    body{margin:0;background:linear-gradient(180deg,#071129 0%, #081026 60%);min-height:100vh;padding:24px;}
-    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:20px}
-    h1{margin:0;font-size:20px;letter-spacing:0.4px}
-    .muted{color:var(--muted);font-size:13px}
-    .wrap{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}
-    .panel{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 4px 20px rgba(2,6,23,0.6)}
-    .search{display:flex;gap:8px;margin-bottom:12px}
-    input[type="search"]{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:inherit}
-    button{padding:10px 12px;border-radius:10px;border:0;background:var(--accent);color:#022;cursor:pointer}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
-    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)}
-    .card img{width:100%;height:140px;object-fit:cover;border-radius:8px;margin-bottom:8px}
-    .price{font-weight:700}
-    .small{font-size:13px;color:var(--muted)}
-    .cart-item{display:flex;gap:10px;align-items:center;margin-bottom:8px}
-    .qty{width:44px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
-    footer{margin-top:18px;font-size:13px;color:var(--muted);text-align:center}
-    @media(max-width:900px){
-      .wrap{grid-template-columns:1fr}
-      .panel.right{order:-1}
-    }
-    /* tiny badge */
-    .badge{display:inline-block;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:12px}
-    /* helper */
+    window.snap.pay(data.snap_token, {
+      onSuccess: function(res){ alert('Pembayaran berhasil (Midtrans)'); console.log(res); },
+      onPending: function(res){ alert('Pembayaran pending (Midtrans)'); console.log(res); },
+      onError: function(res){ alert('Pembayaran error (Midtrans)'); console.log(res); }
+    });
+  } catch(err){ alert('Gagal memulai Midtrans: '+err.message); }
+}
+
+async function payWithTripay(){
+  const uid = el('uid').value.trim(); const server = el('server').value.trim();
+  const v = validateUID(uid); if(!v.ok) return alert(v.msg);
+  let items = []; const keys = Object.keys(cart);
+  if(!keys.length && !selectedProductId) return alert('Pilih produk atau isi keranjang');
+  if(selectedProductId) { const p = products.find(x=>x.id===selectedProductId); items.push({id:p.id,title:p.title,price:p.price,qty:1}); }
+  else keys.forEach(k=> { const p = products.find(x=>x.id===k); items.push({id:p.id,title:p.title,price:p.price,qty:cart[k]}); });
+  try {
+    const resp = await fetch('/api/create-tripay', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,server,items})});
+    if(!resp.ok) throw new Error('Backend tidak merespon');
+    const data = await resp.json();
+    if(data.payment_url) window.location.href = data.payment_url;
+    else throw new Error('payment_url tidak ditemukan');
+  } catch(err){ alert('Gagal memulai Tripay: '+err.message); }
+}
+
+// ========== ADMIN POPUP (simple) ==========
+function openAdminPanel(){
+  const w = window.open('','admin','width=900,height=700');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin</title></head><body><h3>Admin (local demo)</h3><div><button onclick="window.opener.exportOrdersCSV()">Export Orders CSV</button></div><div><button onclick="window.close()">Close</button></div></body></html>`;
+  w.document.write(html); w.document.close();
+}
+
+// ========== EXPORT CSV ==========
+function exportOrdersCSV(){
+  if(!orders.length) return alert('Belum ada pesanan');
+  const header = ['order_id','uid','server','items','total','when'];
+  const rows = orders.map(o=>[o.id,o.uid,o.server||'',o.items.map(i=>i.title+'×'+i.qty).join('|'),o.total,o.when]);
+  const csv = [header, ...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='orders.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+// ========== EVENTS ==========
+document.getElementById('openAdmin').addEventListener('click', openAdminPanel);
+document.getElementById('exportOrders').addEventListener('click', exportOrdersCSV);
+el('q').addEventListener('input', ()=> renderProducts(el('q').value, el('cat').value));
+el('cat').addEventListener('change', ()=> renderProducts(el('q').value, el('cat').value));
+el('addCart').addEventListener('click', ()=> { if(!selectedProductId) return alert('Pilih produk dulu'); addToCart(selectedProductId,1); });
+el('buyNow').addEventListener('click', ()=> checkoutAuto(true));
+el('checkout').addEventListener('click', ()=> checkoutAuto(false));
+el('clearCart').addEventListener('click', ()=> { if(confirm('Kosongkan keranjang?')){ cart={}; localStorage.setItem('cart','{}'); renderCart(); } });
+el('payMidtrans').addEventListener('click', ()=> payWithMidtrans());
+el('payTripay').addEventListener('click', ()=> payWithTripay());
+
+// ========== INIT ==========
+populateCategories(); renderProducts(); renderCart(); renderOrders();
+</script>
+</body>
+</html>    /* helper */
     .flex{display:flex;gap:10px;align-items:center}
   </style>
 </head>
